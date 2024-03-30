@@ -17,9 +17,11 @@
 #SBATCH -e slurm-%j.err
 
 ######### set TASK values(CPU CORES)
-#SBATCH --ntasks 67
-##SBATCH --nodes=52
-##SBATCH --cpus-per-task=24
+#SBATCH --nodes=8
+#SBATCH --ntasks-per-node=2
+##SBATCH --ntasks 30
+##SBATCH --nodes=8
+##SBATCH --cpus-per-task=1
 #SBATCH --exclude=cu18,cu16,cu[74-76],cu[71-72]
 ######### set Parallel Environment
 ## load environment before submitting this job

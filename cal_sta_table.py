@@ -20,8 +20,8 @@ def get_divided(z_num,size):#把z_num表示的范围分成size份
 def get_arr(distance,dep,model='/home/dinghy/location/output_1.73'):
 
     
-    idx=np.abs(dis_range - distance).argmin()
-    idy=np.abs(dep_range - dep).argmin()
+    idx=np.abs(dis_grid_range - distance).argmin()
+    idy=np.abs(dep_grid_range - dep).argmin()
 
 def cal_point_in_lat(point,origin_system):
     y=point[1]
@@ -139,9 +139,6 @@ x_range_id=np.arange(0,len(x_range))
 y_range_id=np.arange(0,len(y_range))
 z_range_id=np.arange(0,len(z_range))
 
-print(x_range)
-print(y_range)
-print(z_range)
 vol=np.zeros((len(x_range),len(y_range),len(z_range)))
 
 # 使用 numpy.meshgrid 生成网格
@@ -153,10 +150,10 @@ points_array = np.vstack((x.flatten(), y.flatten(), z.flatten())).T
 points_array_id = np.vstack((x_id.flatten(), y_id.flatten(), z_id.flatten())).T
 
 
-dis_range=config.dis_range#np.arange(0,400,0.5)
-dep_range=config.dep_range#np.arange(0,50,0.5)
-A_dis=dis_range
-A_dep=dep_range
+dis_grid_range=config.dis_grid_range#np.arange(0,400,0.5)
+dep_grid_range=config.dep_grid_range#np.arange(0,50,0.5)
+A_dis=dis_grid_range
+A_dep=dep_grid_range
 #sta_dic=get_sta()
 for sta in key_rank:
     sta_name=sta
@@ -179,7 +176,6 @@ for sta in key_rank:
     P_arrival=np.load(f'{root}/tt_table/{sta_name}_P_arrival.npy')
     S_arrival=np.load(f'{root}/tt_table/{sta_name}_S_arrival.npy')
     for i,piece in enumerate(piece_list):
-        print(i)
         mi=piece[0]
         ma=piece[1]
         b_dep=B_dep[mi:ma,:]
@@ -192,7 +188,6 @@ for sta in key_rank:
     print(f'time is {end_time - start_time} ')
     np.save(f'{output_dir}/{sta}_P.npy',P_sta.reshape(np.shape(vol)))
     np.save(f'{output_dir}/{sta}_S.npy',S_sta.reshape(np.shape(vol)))
-    print(sta)
 
 
 

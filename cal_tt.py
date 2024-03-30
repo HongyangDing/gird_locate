@@ -213,14 +213,13 @@ if __name__=='__main__':
         modi_velo(tt_table_name,depth_model,vel_model,ratio=1.75,elevation=sta_elevation)
         taup_create.build_taup_model(tt_table_name)
         model = TauPyModel(model=sta_name)
-        dis_range=config.dis_range#np.arange(0,400,0.5)#400
-        dep_range=config.dep_range#np.arange(0,50,0.5)#50
+        dis_range=config.dis_grid_range#np.arange(0,400,0.5)#400
+        dep_range=config.dep_grid_range#np.arange(0,50,0.5)#50
         len_x=len(dis_range)
         len_y=len(dep_range)
         arrival_p=np.zeros((len_x,len_y))
         arrival_s=np.zeros((len_x,len_y))
         indices=(get_indices(arrival_p))
-        print(np.shape(indices))
         arange_list=get_divided([0,len(indices)],size)
         print(arange_list)
         indices_list=[indices[x[0]:x[1],:] for x in arange_list]
