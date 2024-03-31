@@ -186,7 +186,7 @@ if __name__=='__main__':
         sta_name=sys.argv[1]
         root=config.root#'./models/output_varied_k_model'
         if not os.path.exists(root):
-            os.system(f'mkdir {root}')
+            os.makedirs(root)
         output_dir=f'{root}/tt_table'
         if not os.path.exists(output_dir):
             os.system(f'mkdir {output_dir}')
