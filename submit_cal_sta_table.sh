@@ -8,7 +8,8 @@
 # Output: slurm-<JOB_ID>.out
 
 #SBATCH --get-user-env
-#SBATCH --mail-type=end
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=ddhy@pku.edu.cn
 
 ######### set job's name
 #SBATCH -J cal_sta_table
@@ -22,7 +23,7 @@
 ##SBATCH --ntasks 30
 ##SBATCH --nodes=8
 ##SBATCH --cpus-per-task=1
-#SBATCH --exclude=cu18,cu16,cu[74-76],cu[71-72]
+##SBATCH --exclude=cu18,cu16,cu[74-76],cu[71-72]
 ######### set Parallel Environment
 ## load environment before submitting this job
 ##     module load intel/2020.4.304

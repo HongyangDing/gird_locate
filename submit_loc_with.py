@@ -12,13 +12,13 @@
 #SBATCH --mail-user=ddhy@pku.edu.cn
 
 ######### set job's name
-#SBATCH -J cal_tt
+#SBATCH -J with
 
 #SBATCH -o slurm-%j.out
 #SBATCH -e slurm-%j.err
 
 ######### set TASK values(CPU CORES)
-#SBATCH --ntasks 240
+#SBATCH --ntasks 120
 ##SBATCH --nodes=52
 ##SBATCH --cpus-per-task=24
 ##SBATCH --exclude=cu18,cu16,cu[74-76],cu[71-72]
@@ -35,7 +35,7 @@ echo "Current Directory = $WORKPATH"
 #########  execute PROGRAM_NAME
 echo "Computing is started at $(date)."
 
-python $WORKPATH/use_cal_tt.py
+$MPI_HOME/bin/mpiexec -wdir $WORKPATH python $WORKPATH/abs_loc_newnew.py
 exit_code=$?
 
 echo "Computing is stopped at $(date)."
