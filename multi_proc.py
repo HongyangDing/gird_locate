@@ -163,7 +163,7 @@ def calbk(xlist,ylist,origin_system):
         lon.append(po[0])
         lat.append(po[1])
     return [lon,lat]
-def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,method_weight=(0,1,0)):
+def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p):
     point_id=np.array(max_id,dtype=np.int8).T
     travel_time_p=[]
     travel_time_s=[]
@@ -189,8 +189,10 @@ def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,method_weig
 
         #p=np.load(table_path+'/'+sta+'_P.npy')
         #s=np.load(table_path+'/'+sta+'_S.npy')
-        p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
-        sp=np.load(table_path+'/'+sta+'_SP.npy',mmap_mode='r')
+        #p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
+        #sp=np.load(table_path+'/'+sta+'_SP.npy',mmap_mode='r')
+        p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        sp=tt_table[:,:,:,sta2layer[sta]]
         arrival_table_p[:,col-1]=p[max_id]
         arrival_table_s[:,col-1]=sp[max_id]+p[max_id]
     p_obs=np.array(p_obs)
@@ -245,12 +247,14 @@ def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,method_weig
     new_time=year+hm+sec[1:]
 
     return new_time,quality_flag,used_sta,solution,error
-def locate(pha_dic_sel,key_per_cpu,shm_name, shape_o, dtype_o,sta2layer,sta_2d):
+def locate(pha_dic_sel,key_per_cpu,shm_name, shape_o, dtype_o,sta2layer,shm_name_p, shape_p, dtype_p,sta2layer_p,sta_2d):
     # 根据共享内存和原数组的形状创建numpy数组视图
     # 只执行只读操作...
     # 不需要在这里关闭共享内存，这个函数结束后引用计数会降低，但共享内存对象在主进程中被管理
     shm = shared_memory.SharedMemory(name=shm_name)
     tt_table = np.ndarray(shape_o, dtype=dtype_o, buffer=shm.buf)
+    shm_p = shared_memory.SharedMemory(name=shm_name_p)
+    tt_table_p = np.ndarray(shape_p, dtype=dtype_p, buffer=shm_p.buf)
     ######################
     result_good_dic={}
     result_poor_dic={}
@@ -261,22 +265,22 @@ def locate(pha_dic_sel,key_per_cpu,shm_name, shape_o, dtype_o,sta2layer,sta_2d):
     used_sta_poor_dic={}
     counter=0
     for k in key_per_cpu:
-        print(f'Event:{k.strip()}')
         b=k.strip().split(',')
         event_position=[float(b[2]),float(b[1])]#lon,lat
         all_l=len(key_per_cpu)
         counter+=1
-        print(f'rank{rank}: {counter}/{all_l}')
         vol=np.zeros(tt_table[:,:,:,0].shape,dtype=np.int8)
         delta,phase_p,phase_s=get_ps_delta(pha_dic_sel[k])
         t1=time.time()
         for sta in delta:
             vol+=(np.abs(tt_table[:,:,:,sta2layer[sta]]-delta[sta])<=tol)
         t2=time.time()
-        print(f'time comsuing: {t2-t1}')
+        if counter%10==0:
+            print(f'rank{rank}: {counter}/{all_l}')
+            print(f'time comsuing: {t2-t1}')
         vol_max=vol.max()
         max_indices = np.where(vol >= vol_max-0.1)
-        time_new,quality_flag,used_sta,solution,error=search_minimal_d_var(max_indices,delta,phase_p,phase_s,method_weight,event_position)
+        time_new,quality_flag,used_sta,solution,error=search_minimal_d_var(max_indices,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p)
         if quality_flag=='BAD':
             k_new=k
             result_bad_dic[k_new]=pha_dic_sel[k]
@@ -330,7 +334,6 @@ def get_shared_tt_table(data_dir_path,sta_dic,phase='SP',default_type=np.float64
             row,col,z=tt_sta.shape
             sta_num=len(sta_dic)
             total_bytes=sta_num*tt_sta.nbytes
-            print(total_bytes)
             total_dtype=tt_sta.dtype
             total_shape=(row,col,z,sta_num)
             shm = shared_memory.SharedMemory(create=True, size=total_bytes)
@@ -448,19 +451,19 @@ if __name__ == "__main__":
     key_sel=p_keys[slice_list[0]:slice_list[1]]
     pha_dic_sel={key:pha_dic[key] for key in key_sel}
 
-    result_dic={}
-    result_poor_dic={}
-    result_bad_dic={}
-    error_dic={}
-    error_poor_dic={}
-    used_sta_dic={}
-    used_sta_poor_dic={}
-    ind=rank
-    counter=0
+    #result_dic={}
+    #result_poor_dic={}
+    #result_bad_dic={}
+    #error_dic={}
+    #error_poor_dic={}
+    #used_sta_dic={}
+    #used_sta_poor_dic={}
+    #ind=rank
+    #counter=0
 
     sta_2d=get_sta_2d(sta_file)
     
-    cpu_count=multiprocessing.cpu_count()
+    cpu_count=20#multiprocessing.cpu_count()
 
     pha_range_per_cpu=get_divided([0,len(key_sel)],cpu_count)
     key_sel_per_cpu=[key_sel[x[0]:x[1]] for x in pha_range_per_cpu]
@@ -468,6 +471,7 @@ if __name__ == "__main__":
     t1=time.time()
 
     shm,shape_o,dtype_o,sta2layer=get_shared_tt_table(table_path,sta_2d,default_type=np.float32)
+    shm_p,shape_p,dtype_p,sta2layer_p=get_shared_tt_table(table_path,sta_2d,phase='P',default_type=np.float32)
 
     t2=time.time()
     print(f'{rank}: read tt table done... time: {t2-t1}')
@@ -475,9 +479,11 @@ if __name__ == "__main__":
     
     with Pool(processes=cpu_count) as pool:
         # 使用starmap并行地在多个进程中访问共享数组
-        result=pool.starmap(locate, [(pha_dic_sel,x,shm.name, shape_o, dtype_o,sta2layer,sta_2d) for x in key_sel_per_cpu])
+        result=pool.starmap(locate, [(pha_dic_sel,x,shm.name, shape_o, dtype_o,sta2layer,shm_p.name,shape_p, dtype_p,sta2layer_p,sta_2d) for x in key_sel_per_cpu])
     shm.close()
     shm.unlink()
+    shm_p.close()
+    shm_p.unlink()
     results_good=({},{},{})#result_dic,error_dic,used_sta_dic
     results_poor=({},{},{})
     results_bad=({},{},{})
