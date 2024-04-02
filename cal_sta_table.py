@@ -186,8 +186,8 @@ for sta in key_rank:
         S_sta[mi:ma,0]=S_arrival[dis_id,dep_id]
     end_time = time.time()
     print(f'time is {end_time - start_time} ')
-    np.save(f'{output_dir}/{sta}_P.npy',P_sta.reshape(np.shape(vol)))
-    np.save(f'{output_dir}/{sta}_S.npy',S_sta.reshape(np.shape(vol)))
+    np.save(f'{output_dir}/{sta}_P.npy',P_sta.reshape(vol.shape))
+    np.save(f'{output_dir}/{sta}_SP.npy',S_sta.reshape(vol.shape)-P_sta.reshape(vol.shape) )
 
 
 

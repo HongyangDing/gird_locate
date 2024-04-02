@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from mpi4py import MPI
 import sys
 import config
+import time
 def modi_velo(file_name,depth,velocity,elevation=0,ratio=1.75,large_depth=100.0,v_large=8.0,eps=1e-5,rho=2.8):
     depth=np.array(depth)
     velocity=np.array(velocity)
@@ -183,6 +184,7 @@ if __name__=='__main__':
     size=comm.Get_size()
     rank=comm.Get_rank()
     if rank==0:
+        t1=time.time()
         sta_name=sys.argv[1]
         root=config.root#'./models/output_varied_k_model'
         if not os.path.exists(root):
@@ -238,7 +240,7 @@ if __name__=='__main__':
     len_x=comm.bcast(len_x,root=0)
     len_y=comm.bcast(len_y,root=0)
     result=get_ps(indices_list[rank])
-    comm.Barrier()
+    #comm.Barrier()
 
     result_gather= comm.gather(result, root=0)
 
@@ -253,4 +255,6 @@ if __name__=='__main__':
         #print(arrival_s)
         np.save(f'{output_dir}/{sta_name}_P_arrival.npy',arrival_p)
         np.save(f'{output_dir}/{sta_name}_S_arrival.npy',arrival_s)
+        t2=time.time()
+        print(f'total time: {t2-t1}')
 

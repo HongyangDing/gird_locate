@@ -22,5 +22,5 @@ for name in sta_dic:
 #    if name in alread:
 #        continue
     #print(name)
-    os.system(f'mpiexec -n 240 python cal_tt.py {name}')
+    os.system(f'mpiexec -n 20 python cal_tt.py {name}')
 
