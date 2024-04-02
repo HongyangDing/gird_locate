@@ -1,15 +1,16 @@
+import config
 import numpy as np
 import math as m
 import sys
 from obspy.core import UTCDateTime
-import gc
-import copy
+#import gc
+#import copy
 import os
 from multiprocessing import shared_memory, Pool
 import multiprocessing
 import time
-import inspect
-import psutil
+#import inspect
+#import psutil
 from mpi4py import MPI
 def get_pha_dic(file):
     fo=open(file)
@@ -391,36 +392,39 @@ if __name__ == "__main__":
     rank=comm.Get_rank()
     if rank==0:
         total_time_start=time.time()
-    mode='with'
-    #file=f'{mode}4612.txt'
-    phase_file='/home/dinghy/location_ele/input/test.pha'
-    sta_file='/home/dinghy/location_ele/input/station_tk_bd+acc_new.csv'
-    tol=0.5
-    model_path='./test'#config.model_path
-    output_name=f'loc_0330_{mode}'
-    method_weight=(0,1,0)#w1*norm_dd_mean+w2*norm_d_var+w3*norm_dd_var
+    mode=config.mode#'with'
+    phase_file=config.phase_file#f'{mode}4612.txt'
+    #phase_file='/home/dinghy/location_ele/input/test.pha'
+    sta_file=config.sta_file#'/home/dinghy/location_ele/input/station_tk_bd+acc_new.csv'
+    tol=config.tol#0.5
+    model_path=config.model_path
+    output_name=config.output_name#f'loc_0402_{mode}'
+    method_weight=config.method_weight#(0,1,0)#w1*norm_dd_mean+w2*norm_d_var+w3*norm_dd_var
     model_name=os.path.basename(model_path)
+
     initial_time=UTCDateTime('20230201')
     table_path=f'{model_path}/sta_table'
     output_dir=f'./locate_result/absloc_{model_name}_{mode}_{output_name}'
 
     if rank==0:
-        print(output_dir)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         with open(os.path.join(output_dir,'paras.txt'),'w') as po:
             po.write(f'start_time:{time.ctime()}\n')
             po.write(f'input_phase_file:{phase_file}\n')
+            po.write(f'sta_file:{sta_file}\n')
             po.write(f'model_file:{model_path}\n')
             po.write(f'tol:{tol}\n')
             po.write(f'method_weight:{method_weight}\n')
+            po.write(f'table_path:{table_path}\n')
+            po.write(f'output_dir:{output_dir}\n')
 
-    lon_range=[35.5,39]
-    lat_range=[35.5,38.5]
-    dep_range=[0,45]
-    x_delta=0.5#km
-    y_delta=0.5#km
-    z_delta=0.5#km
+    lon_range=config.lon_range#[35.5,39]
+    lat_range=config.lat_range#[35.5,38.5]
+    dep_range=config.dep_range#[0,45]
+    x_delta=config.delta_horizon#km
+    y_delta=config.delta_horizon#km
+    z_delta=config.delta_depth#km
 
     corner_point=[[lon_range[0],lat_range[0]],[lon_range[1],lat_range[0]],[lon_range[1],lat_range[1]],[lon_range[0],lat_range[1]]]
     center=[np.mean(lon_range),np.mean(lat_range)]
