@@ -1,16 +1,18 @@
+from numba import jit
 import config
+
 import numpy as np
 import math as m
 import sys
 from obspy.core import UTCDateTime
-#import gc
-#import copy
+import gc
+import copy
 import os
 from multiprocessing import shared_memory, Pool
 import multiprocessing
 import time
-#import inspect
-#import psutil
+import inspect
+import psutil
 from mpi4py import MPI
 def get_pha_dic(file):
     fo=open(file)
@@ -164,7 +166,7 @@ def calbk(xlist,ylist,origin_system):
         lat.append(po[1])
     return [lon,lat]
 def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p):
-    point_id=np.array(max_id,dtype=np.int8).T
+    point_id=np.array(max_id).T
     travel_time_p=[]
     travel_time_s=[]
     arrival_table_p=np.zeros((len(point_id),len(delta)))
@@ -191,10 +193,16 @@ def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,tt_table,st
         #s=np.load(table_path+'/'+sta+'_S.npy')
         #p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
         #sp=np.load(table_path+'/'+sta+'_SP.npy',mmap_mode='r')
-        p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        #p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        if config.if_read_p: 
+            p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        else:
+            p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
         sp=tt_table[:,:,:,sta2layer[sta]]
         arrival_table_p[:,col-1]=p[max_id]
         arrival_table_s[:,col-1]=sp[max_id]+p[max_id]
+        del p
+        del sp
     p_obs=np.array(p_obs)
     s_obs=np.array(s_obs)
     dis_taper=np.array(dis_taper)
@@ -247,14 +255,17 @@ def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,tt_table,st
     new_time=year+hm+sec[1:]
 
     return new_time,quality_flag,used_sta,solution,error
-def locate(pha_dic_sel,key_per_cpu,shm_name, shape_o, dtype_o,sta2layer,shm_name_p, shape_p, dtype_p,sta2layer_p,sta_2d):
+def locate(pha_dic_sel,key_per_cpu,sta_2d,shm_name, shape_o, dtype_o,sta2layer,shm_name_p=None, shape_p=None, dtype_p=None,sta2layer_p=None):
     # 根据共享内存和原数组的形状创建numpy数组视图
     # 只执行只读操作...
     # 不需要在这里关闭共享内存，这个函数结束后引用计数会降低，但共享内存对象在主进程中被管理
     shm = shared_memory.SharedMemory(name=shm_name)
     tt_table = np.ndarray(shape_o, dtype=dtype_o, buffer=shm.buf)
-    shm_p = shared_memory.SharedMemory(name=shm_name_p)
-    tt_table_p = np.ndarray(shape_p, dtype=dtype_p, buffer=shm_p.buf)
+    if config.if_read_p:
+        shm_p = shared_memory.SharedMemory(name=shm_name_p)
+        tt_table_p=np.ndarray(shape_p, dtype=dtype_p, buffer=shm_p.buf)
+    else:
+        tt_table_p=None
     ######################
     result_good_dic={}
     result_poor_dic={}
@@ -272,14 +283,16 @@ def locate(pha_dic_sel,key_per_cpu,shm_name, shape_o, dtype_o,sta2layer,shm_name
         vol=np.zeros(tt_table[:,:,:,0].shape,dtype=np.int8)
         delta,phase_p,phase_s=get_ps_delta(pha_dic_sel[k])
         t1=time.time()
+
         for sta in delta:
             vol+=(np.abs(tt_table[:,:,:,sta2layer[sta]]-delta[sta])<=tol)
-        t2=time.time()
-        if counter%10==0:
-            print(f'rank{rank}: {counter}/{all_l}')
-            print(f'time comsuing: {t2-t1}')
         vol_max=vol.max()
+        t2=time.time()
         max_indices = np.where(vol >= vol_max-0.1)
+        del vol
+        #if counter%10==0:
+        print(f'rank{rank}: {counter}/{all_l}, time comsuing: {t2-t1}')
+        #gc.collect()
         time_new,quality_flag,used_sta,solution,error=search_minimal_d_var(max_indices,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p)
         if quality_flag=='BAD':
             k_new=k
@@ -451,39 +464,39 @@ if __name__ == "__main__":
     key_sel=p_keys[slice_list[0]:slice_list[1]]
     pha_dic_sel={key:pha_dic[key] for key in key_sel}
 
-    #result_dic={}
-    #result_poor_dic={}
-    #result_bad_dic={}
-    #error_dic={}
-    #error_poor_dic={}
-    #used_sta_dic={}
-    #used_sta_poor_dic={}
-    #ind=rank
-    #counter=0
 
     sta_2d=get_sta_2d(sta_file)
     
-    cpu_count=20#multiprocessing.cpu_count()
+    cpu_count=config.cpu_count#10#multiprocessing.cpu_count()
 
     pha_range_per_cpu=get_divided([0,len(key_sel)],cpu_count)
     key_sel_per_cpu=[key_sel[x[0]:x[1]] for x in pha_range_per_cpu]
     
     t1=time.time()
-
     shm,shape_o,dtype_o,sta2layer=get_shared_tt_table(table_path,sta_2d,default_type=np.float32)
-    shm_p,shape_p,dtype_p,sta2layer_p=get_shared_tt_table(table_path,sta_2d,phase='P',default_type=np.float32)
-
     t2=time.time()
-    print(f'{rank}: read tt table done... time: {t2-t1}')
+    print(f'{rank}: read s-p tt table done... time: {t2-t1}')
+    if config.if_read_p:
+        print('read p tt table......')
+        t1=time.time()
+        shm_p,shape_p,dtype_p,sta2layer_p=get_shared_tt_table(table_path,sta_2d,phase='P',default_type=np.float32)
+        t2=time.time()
+        print(f'{rank}: read p tt table done... time: {t2-t1}')
+        with Pool(processes=cpu_count) as pool:
+            # 使用starmap并行地在多个进程中访问共享数组
+            result=pool.starmap(locate, [(pha_dic_sel,x,sta_2d,shm.name, shape_o, dtype_o,sta2layer,shm_p.name,shape_p, dtype_p,sta2layer_p) for x in key_sel_per_cpu])
+    else:
+        with Pool(processes=cpu_count) as pool:
+            # 使用starmap并行地在多个进程中访问共享数组
+            result=pool.starmap(locate, [(pha_dic_sel,x,sta_2d,shm.name, shape_o, dtype_o,sta2layer) for x in key_sel_per_cpu])
+
     
     
-    with Pool(processes=cpu_count) as pool:
-        # 使用starmap并行地在多个进程中访问共享数组
-        result=pool.starmap(locate, [(pha_dic_sel,x,shm.name, shape_o, dtype_o,sta2layer,shm_p.name,shape_p, dtype_p,sta2layer_p,sta_2d) for x in key_sel_per_cpu])
     shm.close()
     shm.unlink()
-    shm_p.close()
-    shm_p.unlink()
+    if config.if_read_p:
+        shm_p.close()
+        shm_p.unlink()
     results_good=({},{},{})#result_dic,error_dic,used_sta_dic
     results_poor=({},{},{})
     results_bad=({},{},{})
@@ -502,6 +515,8 @@ if __name__ == "__main__":
         e_id=write_gather_result(results_good_gather,output_dir,output_name,marker='GOOD')
         write_gather_result(results_poor_gather,output_dir,output_name,marker='POOR',event_id=e_id)
         write_gather_result(results_bad_gather,output_dir,output_name,marker='BAD')
+        total_time_end=time.time()
+        print(f'total time:{total_time_end-total_time_start}')
 
 
 

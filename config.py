@@ -1,4 +1,5 @@
 import numpy as np
+import multiprocessing
 root='./models/output_varied_k_model'
 lon_range=[35.5,39]
 lat_range=[35.5,38.5]
@@ -26,3 +27,5 @@ sta_file='/home/dinghy/location_ele/input/station_tk_bd+acc_new.csv'
 tol=0.5
 output_name=f'loc_0402_{mode}'
 method_weight=(0,1,0)#w1*norm_dd_mean+w2*norm_d_var+w3*norm_dd_var
+cpu_count=10#multiprocessing.cpu_count()
+if_read_p=False
