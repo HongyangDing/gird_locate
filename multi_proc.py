@@ -1,11 +1,9 @@
-from numba import jit
 import config
 
 import numpy as np
 import math as m
 import sys
 from obspy.core import UTCDateTime
-import gc
 import copy
 import os
 from multiprocessing import shared_memory, Pool
