@@ -1,17 +1,14 @@
 import config
-
 import numpy as np
 import math as m
-import sys
 from obspy.core import UTCDateTime
-import copy
 import os
 from multiprocessing import shared_memory, Pool
 import multiprocessing
 import time
-import inspect
-import psutil
 from mpi4py import MPI
+#import inspect
+#import psutil
 def get_pha_dic(file):
     fo=open(file)
     flist=fo.readlines()
@@ -451,11 +448,11 @@ if __name__ == "__main__":
     y_range=np.arange(y_min,-y_min,y_delta)
     z_range=np.arange(dep_range[0],dep_range[1],z_delta)
 
-    x_range_id=np.arange(0,len(x_range))
-    y_range_id=np.arange(0,len(y_range))
-    z_range_id=np.arange(0,len(z_range))
+    #x_range_id=np.arange(0,len(x_range))
+    #y_range_id=np.arange(0,len(y_range))
+    #z_range_id=np.arange(0,len(z_range))
 
-    start=time.time()
+    #start=time.time()
     pha_dic=get_pha_dic(phase_file)
     slice_list=get_divided([0,len(pha_dic)],size)[rank]
     p_keys=list(pha_dic.keys())
