@@ -113,6 +113,7 @@ def haversine(dot1,dot2):#(lon,lat)
     d=2*6371*m.asin(m.sqrt(inner))
     return d
 def get_dis_taper(x,c1=50,d1=60,d2=90,c2=100,min_v=0.2,large_dis=0.5):#c1  d1 # d2  c2
+    #return 1
     if x < c1:
         return 1
     elif x > c2:
@@ -160,6 +161,153 @@ def calbk(xlist,ylist,origin_system):
         lon.append(po[0])
         lat.append(po[1])
     return [lon,lat]
+
+def get_dd_matrix(mat):
+    contain_nan_flag=np.isnan(mat).any()
+    if contain_nan_flag:
+        return get_col_delta(mat)
+    else:
+        col=np.shape(mat)[-1]
+        I2=get_delta_matrix(col).T
+        return mat @ I2
+def get_delta_matrix(n):#without nan verision
+    num=int(n*(n-1)/2)
+    mat=np.zeros((num,n))
+    row_num=n
+    row_num_sum=0
+    for i in range(n-1):
+        mat[row_num_sum:row_num_sum+n-1-i,i]=1
+        m2=np.eye(n-1-i, k=0)*(-1)
+        mat[row_num_sum:row_num_sum+n-1-i,i+1:n]=m2
+        row_num_sum+=n-1-i
+    return mat
+def get_col_delta(m):#with nan version
+    row,col=np.shape(m)
+    delta_m=np.zeros((row,col*(col-1)//2))
+    counter=0
+    for i in range(col-1):
+        for j in range(i+1,col):
+            delta_m[:,counter]=m[:,i]-m[:,j]
+            counter+=1
+    return delta_m
+
+def get_weight_expand(m):
+    col=len(m)
+    delta_m=np.zeros(col*(col-1)//2)
+    counter=0
+    for i in range(col-1):
+        for j in range(i+1,col):
+            delta_m[counter]=np.min([m[i],m[j]])
+            counter+=1
+    return delta_m
+def search_minimal_dd_var(max_id,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p):
+    point_id=np.array(max_id).T
+    travel_time_p=[]
+    travel_time_s=[]
+    arrival_table_p=np.zeros((len(point_id),len(delta)))
+    arrival_table_s=np.zeros((len(point_id),len(delta)))#为保持一致性，删除point_id/arrival_table_p的行操作要同时进行
+    sta_near_col=[]
+    delta_ps_obs=[]
+    p_obs=[]
+    s_obs=[]
+    col=0
+    dis_taper=[]
+    phase_name=[]
+    for sta in delta:
+        poi1=sta_2d[sta]
+        poi2=event_position
+        distance=haversine(poi1,poi2)
+        dis_taper.append(get_dis_taper(distance))
+        col+=1
+        delta_ps_obs.append(delta[sta])
+        p_obs.append(phase_p[sta])
+        s_obs.append(phase_s[sta])
+        phase_name.append(sta)
+
+        #p=np.load(table_path+'/'+sta+'_P.npy')
+        #s=np.load(table_path+'/'+sta+'_S.npy')
+        #p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
+        #sp=np.load(table_path+'/'+sta+'_SP.npy',mmap_mode='r')
+        #p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        if config.if_read_p: 
+            p=tt_table_p[:,:,:,sta2layer_p[sta]]
+        else:
+            p=np.load(table_path+'/'+sta+'_P.npy',mmap_mode='r')
+        sp=tt_table[:,:,:,sta2layer[sta]]
+        arrival_table_p[:,col-1]=p[max_id]
+        arrival_table_s[:,col-1]=sp[max_id]+p[max_id]
+        del p
+        del sp
+    p_obs=np.array(p_obs)
+    s_obs=np.array(s_obs)
+    dis_taper=np.array(dis_taper)
+    dd_dis_taper=get_weight_expand(dis_taper)
+    ps_ratio=0.6
+    dis_taper=np.hstack((dis_taper,dis_taper*ps_ratio))
+    dd_dis_taper=np.hstack((dd_dis_taper,dd_dis_taper*ps_ratio))
+
+    delta_ps_obs=np.array(delta_ps_obs)
+    b=np.where(np.abs(arrival_table_s-arrival_table_p-delta_ps_obs)>tol)
+    arrival_table_p[b]=np.nan
+    arrival_table_s[b]=np.nan
+    p_non_nan=np.sum(~np.isnan(arrival_table_p)+0,axis=1)
+    s_non_nan=np.sum(~np.isnan(arrival_table_s)+0,axis=1)
+    non_nan=p_non_nan+s_non_nan
+    max_valid_phase=np.max(non_nan)
+    quality_flag=None
+    if max_valid_phase<8:
+        quality_flag='BAD'
+        return -1,quality_flag,-1,-1,-1
+    #elif max_valid_phase<8:
+    #    quality_flag='POOR'
+    else:
+        quality_flag='GOOD'
+    
+    not_nan_rows = ~(np.isnan(np.hstack((arrival_table_p,arrival_table_s))).all(axis=1))
+
+    ####del all nan rows
+    arrival_table_p=arrival_table_p[not_nan_rows]
+    arrival_table_s=arrival_table_s[not_nan_rows]
+    point_id=point_id[not_nan_rows]
+
+    #####
+
+    obs_num=len(delta)#col num
+    #delta_d_mat=np.hstack((p_obs-arrival_table_p,s_obs-arrival_table_s))
+    #var_d_list=weighted_var(delta_d_mat,dis_taper)
+    #min_var_ind=np.argmin(var_d_list)
+    dd_p_theo=get_dd_matrix(arrival_table_p)
+    dd_s_theo=get_dd_matrix(arrival_table_s)
+    dd_p_obs=get_dd_matrix(p_obs)#p_obs @ I2
+    dd_s_obs=get_dd_matrix(s_obs)#s_obs @ I2
+    dd_theo=np.hstack((dd_p_theo/mean_p_delta,dd_s_theo/mean_s_delta))
+    dd_obs=np.hstack((dd_p_obs/mean_p_delta,dd_s_obs/mean_s_delta))
+    delta_dd_mat=dd_theo-dd_obs
+    var_dd_list=weighted_var(delta_dd_mat,dd_dis_taper)
+    min_var_ind=np.argmin(var_dd_list)
+
+    point_min=point_id[min_var_ind]
+
+    shift_time=np.nanmean(delta_d_mat,axis=1)
+    norm_min=var_dd_list[min_var_ind]
+    err_cal=point_id[var_dd_list<=1.05*var_dd_list[min_var_ind]]
+    solution,error=index2lon(point_min,err_cal.T)
+
+    p_used=~np.isnan(np.squeeze(arrival_table_p[min_var_ind,:]))
+    s_used=~np.isnan(np.squeeze(arrival_table_s[min_var_ind,:]))
+    used_sta=np.array(phase_name)[p_used | s_used]
+    if np.count_nonzero(used_sta)<4:
+        quality_flag='POOR'
+    shift=shift_time[min_var_ind]
+    year,time=str(initial_time+shift).split('T')
+    year=year.replace('-','')
+    time=time.replace(':','').replace('Z','')
+    hm,sec=time.split('.')
+
+    sec="{:.2f}".format(float('.'+sec))
+    new_time=year+hm+sec[1:]
+
+    return new_time,quality_flag,used_sta,solution,error
 def search_minimal_d_var(max_id,delta,phase_p,phase_s,event_position,tt_table,sta2layer,tt_table_p,sta2layer_p):
     point_id=np.array(max_id).T
     travel_time_p=[]
@@ -401,6 +549,7 @@ if __name__ == "__main__":
     comm=MPI.COMM_WORLD
     size=comm.Get_size()
     rank=comm.Get_rank()
+    print(f'size:{size}')
     if rank==0:
         total_time_start=time.time()
     mode=config.mode#'with'
