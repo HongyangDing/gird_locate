@@ -64,7 +64,7 @@ def modi_velo(file_name,depth,velocity,elevation=0,ratio=1.75,large_depth=100.0,
     for li in depth_lines:
         fo.write(li)
     fo.close()
-def get_ps(indices):
+def get_ps(indices,sta_elevation):
     ps_list=[]
     all_l=len(indices)
     counter=0
@@ -76,7 +76,7 @@ def get_ps(indices):
         j=ind[1]
         dis=dis_range[i]
         dep=dep_range[j]
-        source_depth_in_km=dep
+        source_depth_in_km=dep+sta_elevation
         distance_in_km=dis
         distance_in_degree=(distance_in_km/6371.0)*180/np.pi
         ps=get_arrival_time(model,source_depth_in_km,distance_in_degree)
@@ -232,6 +232,7 @@ if __name__=='__main__':
         len_x=Non=None
         len_y=Non=None
         model=None
+        sta_elevation=None
 
     model=comm.bcast(model,root=0)
     dep_range=comm.bcast(dep_range,root=0)
@@ -239,7 +240,8 @@ if __name__=='__main__':
     indices_list=comm.bcast(indices_list,root=0)
     len_x=comm.bcast(len_x,root=0)
     len_y=comm.bcast(len_y,root=0)
-    result=get_ps(indices_list[rank])
+    sta_elevation=comm.bcast(sta_elevation,root=0)
+    result=get_ps(indices_list[rank],sta_elevation)
     #comm.Barrier()
 
     result_gather= comm.gather(result, root=0)

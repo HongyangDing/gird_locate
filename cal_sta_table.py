@@ -162,7 +162,8 @@ for sta in key_rank:
     sta_pos=sta_dic[sta]
     delta=points_array-sta_pos
     xy_delta=delta[:,:2]
-    dep_delta=delta[:,2]
+    #dep_delta=delta[:,2]
+    dep_delta=points_array[:,2]
     dis_sta=np.sqrt(np.sum(xy_delta**2, axis=1))
 
     B_dis=dis_sta.reshape(len(dis_sta),1)
