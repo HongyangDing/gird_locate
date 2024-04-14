@@ -661,6 +661,8 @@ if __name__ == "__main__":
         write_gather_result(results_bad_gather,output_dir,output_name,marker='BAD')
         total_time_end=time.time()
         print(f'total time:{total_time_end-total_time_start}')
+        with open(os.path.join(output_dir,'paras.txt'),'a+') as po:
+            po.write(f'end_time:{time.ctime()}\n')
 
 
 
